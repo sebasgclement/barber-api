@@ -16,6 +16,7 @@ class Appointment extends Model
         'customer_phone',
         'customer_email',
         'scheduled_at',
+        'ends_at',
         'payment_status', // Fundamental para el filtro de pagados [cite: 28]
         'total_amount',
         'mercadopago_id',

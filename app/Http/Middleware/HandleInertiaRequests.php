@@ -28,12 +28,21 @@ class HandleInertiaRequests extends Middleware
      * @return array<string, mixed>
      */
     public function share(Request $request): array
-    {
-        return [
-            ...parent::share($request),
-            'auth' => [
-                'user' => $request->user(),
+{
+    // Buscamos si el usuario logueado tiene una barbería (tenant)
+    $tenant = $request->user() ? $request->user()->tenant : null;
+
+    return [
+        ...parent::share($request),
+        'auth' => [
+            'user' => $request->user(),
+            // Pasamos la configuración del Tenant
+            'brand' => [
+                // Si existe el tenant, usamos su color. Si no, default.
+                'color' => $tenant ? $tenant->primary_color : '#d97706',
+                'name'  => $tenant ? $tenant->name : 'Mi Barbería',
             ],
-        ];
-    }
+        ],
+    ];
+}
 }

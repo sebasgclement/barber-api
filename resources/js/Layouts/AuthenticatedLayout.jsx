@@ -2,6 +2,7 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
+import { Toaster } from 'react-hot-toast';
 import { Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
@@ -23,12 +24,21 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </Link>
                             </div>
 
+                            {/* --- MENÚ ESCRITORIO --- */}
                             <div className="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                                 <NavLink
                                     href={route('dashboard')}
                                     active={route().current('dashboard')}
                                 >
                                     Dashboard
+                                </NavLink>
+                                
+                                {/* AGREGADO: Link de Mis Turnos */}
+                                <NavLink
+                                    href={route('my-appointments.index')}
+                                    active={route().current('my-appointments.index')}
+                                >
+                                    Mis Turnos
                                 </NavLink>
                             </div>
                         </div>
@@ -121,6 +131,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     </div>
                 </div>
 
+                {/* --- MENÚ MÓVIL (RESPONSIVE) --- */}
                 <div
                     className={
                         (showingNavigationDropdown ? 'block' : 'hidden') +
@@ -133,6 +144,14 @@ export default function AuthenticatedLayout({ header, children }) {
                             active={route().current('dashboard')}
                         >
                             Dashboard
+                        </ResponsiveNavLink>
+
+                        {/* AGREGADO: Link de Mis Turnos (Móvil) */}
+                        <ResponsiveNavLink
+                            href={route('my-appointments.index')}
+                            active={route().current('my-appointments.index')}
+                        >
+                            Mis Turnos
                         </ResponsiveNavLink>
                     </div>
 
@@ -171,6 +190,17 @@ export default function AuthenticatedLayout({ header, children }) {
             )}
 
             <main>{children}</main>
+            <Toaster 
+                position="top-right"
+                toastOptions={{
+                    className: '',
+                    style: {
+                        border: '1px solid #713200',
+                        padding: '16px',
+                        color: '#713200',
+                    },
+                }}
+            />
         </div>
     );
 }

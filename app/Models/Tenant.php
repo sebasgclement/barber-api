@@ -11,6 +11,7 @@ class Tenant extends Model
 
     // Habilitamos la asignación masiva para estos campos
     protected $fillable = [
+        'user_id',
         'name',
         'slug',
         'primary_color',
@@ -26,5 +27,9 @@ class Tenant extends Model
     public function appointments()
     {
         return $this->hasMany(Appointment::class);
+    }
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

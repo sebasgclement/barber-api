@@ -23,6 +23,11 @@ class User extends Authenticatable
         'password',
     ];
 
+    public function tenant()
+    {
+        return $this->hasOne(Tenant::class);
+    }
+
     /**
      * The attributes that should be hidden for serialization.
      *

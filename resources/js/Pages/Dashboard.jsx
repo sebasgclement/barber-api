@@ -1,143 +1,189 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, usePage } from '@inertiajs/react'; // Importamos usePage para sacar datos del usuario
+import { Head, useForm } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
-import axios from 'axios'; // Usamos Axios para las peticiones (es más fácil que fetch)
+import axios from 'axios';
 
-export default function Dashboard() {
-    const user = usePage().props.auth.user; // <-- ACÁ SACAMOS LOS DATOS DE QUIEN ESTÁ LOGUEADO
-
-    const [services, setServices] = useState([]);
-    const [selectedService, setSelectedService] = useState(null);
-    const [dateTime, setDateTime] = useState('');
-    const [phone, setPhone] = useState('');
+export default function Dashboard({ auth }) {
+    const [availableSlots, setAvailableSlots] = useState([]);
+    const [loadingSlots, setLoadingSlots] = useState(false);
     
-    // Para mostrar mensajes de éxito o error
-    const [message, setMessage] = useState(null); 
+    // NUEVO: Estado para cargar los servicios reales de la DB
+    const [services, setServices] = useState([]);
+
+    const { data, setData, post, processing, errors } = useForm({
+        service_id: '',      // Lo dejamos vacío al inicio
+        date: '',            
+        time: '',            
+        scheduled_at: '',    
+        customer_name: auth.user.name,
+        customer_phone: '',
+        customer_email: auth.user.email,
+    });
 
     // 1. Cargar servicios al iniciar
     useEffect(() => {
-        axios.get('/api/services')
-            .then(res => setServices(res.data))
-            .catch(err => console.error(err));
+        // Podés crear esta ruta rápida en routes/api.php o pasarla como prop desde Inertia
+        // Por ahora asumimos que existe una ruta pública o protegida
+        axios.get('/api/services') 
+            .then(res => {
+                setServices(res.data);
+                if(res.data.length > 0) {
+                    setData('service_id', res.data[0].id); // Seleccionar el primero por defecto
+                }
+            })
+            .catch(err => console.error("Error cargando servicios", err));
     }, []);
 
-    // 2. Función para reservar
-    const handleReserve = () => {
-        if (!selectedService || !dateTime || !phone) {
-            alert("Por favor completá todos los datos");
-            return;
+    // 2. Buscar huecos cuando cambia Fecha o Servicio
+    useEffect(() => {
+        if (data.date && data.service_id) {
+            setAvailableSlots([]); // Limpiar anteriores
+            setLoadingSlots(true);
+            
+            axios.get(`/api/slots?date=${data.date}&service_id=${data.service_id}`)
+                .then(response => {
+                    setAvailableSlots(response.data);
+                    setLoadingSlots(false);
+                })
+                .catch(error => {
+                    console.error("Error cargando horarios", error);
+                    setLoadingSlots(false);
+                });
         }
+    }, [data.date, data.service_id]);
 
-        // Formateamos la fecha para que le guste a MySQL (reemplazamos la T por espacio)
-        // El input viene como "2026-01-07T10:00", lo pasamos a "2026-01-07 10:00:00"
-        const formattedDate = dateTime.replace('T', ' ') + ':00';
+    // 3. Enviar Formulario
+    const submit = (e) => {
+        e.preventDefault();
+        const finalDateTime = `${data.date} ${data.time}:00`;
 
         const payload = {
-            service_id: selectedService.id,
-            scheduled_at: formattedDate,
-            customer_name: user.name,   // Usamos el nombre de tu usuario logueado
-            customer_email: user.email, // Usamos el email de tu usuario logueado
-            customer_phone: phone
+            ...data,
+            scheduled_at: finalDateTime
         };
 
         axios.post('/api/appointments', payload)
-            .then(response => {
-                setMessage({ type: 'success', text: '¡Turno reservado con éxito! ID: ' + response.data.data.id });
-                setSelectedService(null); // Reseteamos la selección
-                setDateTime('');
+            .then(res => {
+                alert('¡Turno reservado con éxito! 💈');
+                window.location.href = '/mis-turnos'; 
             })
-            .catch(error => {
-                // Si el backend devuelve error (ej: horario ocupado o cerrado)
-                const errorMsg = error.response?.data?.message || 'Ocurrió un error inesperado';
-                setMessage({ type: 'error', text: errorMsg });
+            .catch(err => {
+                if(err.response && err.response.data.message) {
+                    alert(err.response.data.message);
+                } else {
+                    alert('Ocurrió un error al reservar.');
+                }
             });
     };
 
     return (
         <AuthenticatedLayout
-            header={<h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">Reserva tu Turno ✂️</h2>}
+            user={auth.user}
+            header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Reservar Turno</h2>}
         >
-            <Head title="Dashboard" />
+            <Head title="Reservar" />
 
             <div className="py-12">
-                <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
-                    
-                    {/* MENSAJES DE ALERTA */}
-                    {message && (
-                        <div className={`mb-4 p-4 rounded text-white ${message.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
-                            {message.text}
-                        </div>
-                    )}
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
                         
-                        {/* COLUMNA IZQUIERDA: SERVICIOS */}
-                        <div>
-                            <h3 className="mb-4 text-xl font-bold text-gray-800 dark:text-white px-2">1. Elegí un servicio:</h3>
-                            <div className="space-y-4">
-                                {services.map((service) => (
-                                    <div 
-                                        key={service.id} 
-                                        onClick={() => setSelectedService(service)}
-                                        className={`p-4 cursor-pointer border-2 rounded-lg transition-all ${
-                                            selectedService?.id === service.id 
-                                            ? 'border-red-500 bg-red-50 dark:bg-red-900/20' 
-                                            : 'border-transparent bg-white dark:bg-gray-800 hover:border-gray-300'
-                                        }`}
-                                    >
-                                        <div className="flex justify-between items-center">
-                                            <span className="font-bold text-gray-900 dark:text-white">{service.name}</span>
-                                            <span className="text-red-500 font-bold">${service.price}</span>
-                                        </div>
-                                    </div>
-                                ))}
+                        <form onSubmit={submit} className="space-y-6 max-w-lg mx-auto">
+                            
+                            {/* SERVICIO DINÁMICO */}
+                            <div>
+                                <label className="block font-medium text-gray-700 mb-2">1. Elegí el servicio</label>
+                                <select 
+                                    value={data.service_id}
+                                    onChange={e => setData('service_id', e.target.value)}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    {services.length === 0 && <option>Cargando servicios...</option>}
+                                    
+                                    {services.map(service => (
+                                        <option key={service.id} value={service.id}>
+                                            {/* AQUÍ SE VE LA MAGIA: Nombre (Minutos) - Precio */}
+                                            {service.name} ({service.duration_minutes} min) - ${service.price}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
-                        </div>
 
-                        {/* COLUMNA DERECHA: FORMULARIO (Solo aparece si elegiste servicio) */}
-                        <div>
-                            {selectedService ? (
-                                <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-                                    <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white">
-                                        Reservando: <span className="text-red-500">{selectedService.name}</span>
-                                    </h3>
+                            {/* FECHA */}
+                            <div>
+                                <label className="block font-medium text-gray-700 mb-2">2. ¿Qué día venís?</label>
+                                <input 
+                                    type="date" 
+                                    min={new Date().toISOString().split('T')[0]} 
+                                    value={data.date}
+                                    onChange={e => {
+                                        setData('date', e.target.value);
+                                        setData('time', '');
+                                    }}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                    required 
+                                />
+                            </div>
 
-                                    <div className="mb-4">
-                                        <label className="block text-gray-700 dark:text-gray-300 mb-2">¿Cuándo venís?</label>
-                                        <input 
-                                            type="datetime-local" 
-                                            className="w-full p-2 border rounded dark:bg-gray-700 dark:text-white"
-                                            value={dateTime}
-                                            onChange={(e) => setDateTime(e.target.value)}
-                                        />
-                                        <p className="text-xs text-gray-500 mt-1">Horario: 09:00 a 20:00</p>
-                                    </div>
-
-                                    <div className="mb-4">
-                                        <label className="block text-gray-700 dark:text-gray-300 mb-2">Tu Teléfono</label>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Ej: 3492 123456"
-                                            className="w-full p-2 border rounded dark:bg-gray-700 dark:text-white"
-                                            value={phone}
-                                            onChange={(e) => setPhone(e.target.value)}
-                                        />
-                                    </div>
-
-                                    <button 
-                                        onClick={handleReserve}
-                                        className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors"
-                                    >
-                                        CONFIRMAR RESERVA ($ {selectedService.price})
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="h-full flex items-center justify-center p-10 border-2 border-dashed border-gray-300 rounded-lg">
-                                    <p className="text-gray-500">👈 Seleccioná un servicio para continuar</p>
+                            {/* GRILLA DE HORARIOS */}
+                            {data.date && (
+                                <div>
+                                    <label className="block font-medium text-gray-700 mb-2">3. Seleccioná un horario disponible</label>
+                                    
+                                    {loadingSlots ? (
+                                        <p className="text-gray-500 text-sm animate-pulse">Buscando huecos libres...</p>
+                                    ) : (
+                                        <div className="grid grid-cols-4 gap-2">
+                                            {availableSlots.length > 0 ? (
+                                                availableSlots.map((slot) => (
+                                                    <button
+                                                        key={slot}
+                                                        type="button"
+                                                        onClick={() => setData('time', slot)}
+                                                        className={`py-2 px-3 rounded text-sm font-bold border transition
+                                                            ${data.time === slot 
+                                                                ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-300' 
+                                                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                                            }`}
+                                                    >
+                                                        {slot}
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                <p className="col-span-4 text-red-500 text-sm text-center bg-red-50 p-2 rounded">
+                                                    No quedan turnos para este servicio hoy. 😔
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                    {errors.scheduled_at && <div className="text-red-500 text-sm mt-1">{errors.scheduled_at}</div>}
                                 </div>
                             )}
-                        </div>
 
+                            {/* TELÉFONO */}
+                            <div className="pt-4 border-t">
+                                <label className="block font-medium text-gray-700 mb-2">Tu Teléfono</label>
+                                <input 
+                                    type="text" 
+                                    value={data.customer_phone}
+                                    onChange={e => setData('customer_phone', e.target.value)}
+                                    className="w-full border-gray-300 rounded-md shadow-sm"
+                                    placeholder="Ej: 3492 123456"
+                                    required 
+                                />
+                            </div>
+
+                            {/* BOTÓN */}
+                            <button 
+                                type="submit" 
+                                disabled={processing || !data.time}
+                                className={`w-full py-3 rounded-lg text-white font-bold text-lg shadow-md transition
+                                    ${(processing || !data.time) 
+                                        ? 'bg-gray-400 cursor-not-allowed' 
+                                        : 'bg-gray-900 hover:bg-black'}`}
+                            >
+                                {processing ? 'Reservando...' : 'Confirmar Reserva ✅'}
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
