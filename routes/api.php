@@ -11,3 +11,6 @@ Route::get('/user', function (Request $request) {
 // Citas
 Route::get('/appointments', [AppointmentController::class, 'index']);
 Route::post('/appointments', [AppointmentController::class, 'store']);
+
+// Listar servicios disponibles (público)
+Route::get('/services', [\App\Http\Controllers\Api\ServiceController::class, 'index']);
