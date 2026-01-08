@@ -1,20 +1,20 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useEffect, useState } from 'react';
 
 export default function Dashboard({ auth }) {
     const [availableSlots, setAvailableSlots] = useState([]);
     const [loadingSlots, setLoadingSlots] = useState(false);
     
-    // NUEVO: Estado para cargar los servicios reales de la DB
+    // Estado para cargar los servicios reales de la DB
     const [services, setServices] = useState([]);
 
     const { data, setData, post, processing, errors } = useForm({
-        service_id: '',      // Lo dejamos vacío al inicio
-        date: '',            
-        time: '',            
-        scheduled_at: '',    
+        service_id: '',
+        date: '',
+        time: '',
+        scheduled_at: '',
         customer_name: auth.user.name,
         customer_phone: '',
         customer_email: auth.user.email,
@@ -22,13 +22,11 @@ export default function Dashboard({ auth }) {
 
     // 1. Cargar servicios al iniciar
     useEffect(() => {
-        // Podés crear esta ruta rápida en routes/api.php o pasarla como prop desde Inertia
-        // Por ahora asumimos que existe una ruta pública o protegida
         axios.get('/api/services') 
             .then(res => {
                 setServices(res.data);
                 if(res.data.length > 0) {
-                    setData('service_id', res.data[0].id); // Seleccionar el primero por defecto
+                    setData('service_id', res.data[0].id);
                 }
             })
             .catch(err => console.error("Error cargando servicios", err));
@@ -42,6 +40,7 @@ export default function Dashboard({ auth }) {
             
             axios.get(`/api/slots?date=${data.date}&service_id=${data.service_id}`)
                 .then(response => {
+                    // Ahora response.data es un array de objetos: { time: '09:00', available: true/false }
                     setAvailableSlots(response.data);
                     setLoadingSlots(false);
                 })
@@ -65,7 +64,8 @@ export default function Dashboard({ auth }) {
         axios.post('/api/appointments', payload)
             .then(res => {
                 alert('¡Turno reservado con éxito! 💈');
-                window.location.href = '/mis-turnos'; 
+                // Redirigir a mis turnos o donde prefieras
+                 window.location.href = '/dashboard'; 
             })
             .catch(err => {
                 if(err.response && err.response.data.message) {
@@ -101,7 +101,6 @@ export default function Dashboard({ auth }) {
                                     
                                     {services.map(service => (
                                         <option key={service.id} value={service.id}>
-                                            {/* AQUÍ SE VE LA MAGIA: Nombre (Minutos) - Precio */}
                                             {service.name} ({service.duration_minutes} min) - ${service.price}
                                         </option>
                                     ))}
@@ -124,33 +123,50 @@ export default function Dashboard({ auth }) {
                                 />
                             </div>
 
-                            {/* GRILLA DE HORARIOS */}
+                            {/* GRILLA DE HORARIOS INTELIGENTE */}
                             {data.date && (
                                 <div>
                                     <label className="block font-medium text-gray-700 mb-2">3. Seleccioná un horario disponible</label>
                                     
                                     {loadingSlots ? (
-                                        <p className="text-gray-500 text-sm animate-pulse">Buscando huecos libres...</p>
+                                        <p className="text-gray-500 text-sm animate-pulse">Consultando agenda...</p>
                                     ) : (
-                                        <div className="grid grid-cols-4 gap-2">
+                                        <div className="grid grid-cols-4 gap-3">
                                             {availableSlots.length > 0 ? (
-                                                availableSlots.map((slot) => (
-                                                    <button
-                                                        key={slot}
-                                                        type="button"
-                                                        onClick={() => setData('time', slot)}
-                                                        className={`py-2 px-3 rounded text-sm font-bold border transition
-                                                            ${data.time === slot 
-                                                                ? 'bg-blue-600 text-white border-blue-600 ring-2 ring-blue-300' 
-                                                                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                                                            }`}
-                                                    >
-                                                        {slot}
-                                                    </button>
-                                                ))
+                                                availableSlots.map((slotObj, index) => {
+                                                    // Determinar estilos según disponibilidad y selección
+                                                    const isSelected = data.time === slotObj.time;
+                                                    const isAvailable = slotObj.available;
+                                                    
+                                                    let btnClass = "py-2 px-2 rounded text-sm font-bold border transition duration-200 ";
+                                                    
+                                                    if (!isAvailable) {
+                                                        // ESTILO: No disponible (Rojo suave / Deshabilitado)
+                                                        btnClass += "bg-red-50 text-red-300 border-red-100 cursor-not-allowed";
+                                                    } else if (isSelected) {
+                                                        // ESTILO: Seleccionado (Azul fuerte)
+                                                        btnClass += "bg-blue-600 text-white border-blue-600 ring-2 ring-blue-300 transform scale-105 shadow-md";
+                                                    } else {
+                                                        // ESTILO: Disponible (Blanco -> Hover Verde)
+                                                        btnClass += "bg-white text-gray-700 border-gray-300 hover:bg-green-50 hover:text-green-700 hover:border-green-400 cursor-pointer shadow-sm hover:shadow";
+                                                    }
+
+                                                    return (
+                                                        <button
+                                                            key={index}
+                                                            type="button"
+                                                            disabled={!isAvailable}
+                                                            onClick={() => isAvailable && setData('time', slotObj.time)}
+                                                            className={btnClass}
+                                                            title={isAvailable ? "Reservar este horario" : "Horario no disponible"}
+                                                        >
+                                                            {slotObj.time}
+                                                        </button>
+                                                    );
+                                                })
                                             ) : (
-                                                <p className="col-span-4 text-red-500 text-sm text-center bg-red-50 p-2 rounded">
-                                                    No quedan turnos para este servicio hoy. 😔
+                                                <p className="col-span-4 text-gray-500 text-sm text-center italic">
+                                                    No hay horarios configurados para este día.
                                                 </p>
                                             )}
                                         </div>
@@ -166,22 +182,22 @@ export default function Dashboard({ auth }) {
                                     type="text" 
                                     value={data.customer_phone}
                                     onChange={e => setData('customer_phone', e.target.value)}
-                                    className="w-full border-gray-300 rounded-md shadow-sm"
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                                     placeholder="Ej: 3492 123456"
                                     required 
                                 />
                             </div>
 
-                            {/* BOTÓN */}
+                            {/* BOTÓN CONFIRMAR */}
                             <button 
                                 type="submit" 
                                 disabled={processing || !data.time}
                                 className={`w-full py-3 rounded-lg text-white font-bold text-lg shadow-md transition
                                     ${(processing || !data.time) 
                                         ? 'bg-gray-400 cursor-not-allowed' 
-                                        : 'bg-gray-900 hover:bg-black'}`}
+                                        : 'bg-gray-900 hover:bg-black hover:scale-[1.01]'}`}
                             >
-                                {processing ? 'Reservando...' : 'Confirmar Reserva ✅'}
+                                {processing ? 'Procesando...' : 'Confirmar Reserva ✅'}
                             </button>
                         </form>
                     </div>

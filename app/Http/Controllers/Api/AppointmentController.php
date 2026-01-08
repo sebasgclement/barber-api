@@ -26,7 +26,7 @@ class AppointmentController extends Controller
         return response()->json($appointments);
     }
 
-    // 2. CREAR TURNO (Corregido)
+    // 2. CREAR TURNO
     public function store(Request $request)
     {
         $request->validate([
@@ -37,23 +37,16 @@ class AppointmentController extends Controller
             'customer_email' => 'nullable|email',
         ]);
 
-        // A. Definimos inicio
         $startTime = Carbon::parse($request->scheduled_at);
         
-        // Validar horario comercial (9 a 20hs)
         if ($startTime->hour < 9 || $startTime->hour >= 20) {
             return response()->json(['message' => 'La barbería está cerrada a esa hora.'], 422);
         }
 
         $service = Service::find($request->service_id);
-        
-        // CORRECCIÓN AQUÍ: Usamos la duración real de la DB
         $minutes = $service->duration_minutes ?? 60; 
-        
-        // Calculamos el final sumando esos minutos
         $endTime = $startTime->copy()->addMinutes($minutes);
 
-        // B. CHECK DE SUPERPOSICIÓN
         $overlap = Appointment::where('tenant_id', 1)
             ->where('payment_status', '!=', 'cancelled')
             ->where(function ($query) use ($startTime, $endTime) {
@@ -65,10 +58,9 @@ class AppointmentController extends Controller
             ->exists();
 
         if ($overlap) {
-            return response()->json(['message' => '¡Ups! Ese horario ya está ocupado (o se superpone con otro).'], 422);
+            return response()->json(['message' => '¡Ups! Ese horario ya está ocupado.'], 422);
         }
 
-        // C. Guardamos
         $appointment = Appointment::create([
             'tenant_id' => 1,
             'service_id' => $request->service_id,
@@ -105,31 +97,43 @@ class AppointmentController extends Controller
         }
 
         $appointment = $query->firstOrFail();
-
         $appointment->payment_status = 'cancelled';
         $appointment->save();
 
         return response()->json(['message' => 'Turno cancelado correctamente.']);
     }
 
-    // 5. MOSTRAR LA PANTALLA
+    // 5. MOSTRAR LA PANTALLA DE MIS TURNOS
     public function renderPage()
     {
         return Inertia::render('MyAppointments');
     }
 
-    // 6. FUNCIONES DE ADMIN
+    // 6. FUNCIONES DE ADMIN (MODIFICADO PARA SEPARAR HOY/FUTURO)
     public function adminList()
     {
         if (!auth()->user()->is_admin) {
             abort(403, 'Acceso denegado.');
         }
 
-        $appointments = Appointment::with('service')
+        $today = Carbon::today();
+
+        // Turnos de HOY
+        $todayAppointments = Appointment::with('service')
+            ->whereDate('scheduled_at', $today)
             ->orderBy('scheduled_at', 'asc')
             ->get();
 
-        return response()->json($appointments);
+        // Turnos FUTUROS (Mañana en adelante)
+        $futureAppointments = Appointment::with('service')
+            ->whereDate('scheduled_at', '>', $today)
+            ->orderBy('scheduled_at', 'asc')
+            ->get();
+
+        return response()->json([
+            'today' => $todayAppointments,
+            'future' => $futureAppointments
+        ]);
     }
 
     // 7. MARCAR COMO PAGADO
@@ -146,7 +150,7 @@ class AppointmentController extends Controller
         return response()->json(['message' => 'Turno cobrado.', 'appointment' => $appointment]);
     }
 
-    // 8. GENERADOR DE HORARIOS DISPONIBLES
+    // 8. GENERADOR DE HORARIOS DISPONIBLES (VERSIÓN MEJORADA 2.0)
     public function availableSlots(Request $request)
     {
         $request->validate([
@@ -156,16 +160,20 @@ class AppointmentController extends Controller
 
         $date = $request->date;
         $service = Service::find($request->service_id);
-        
-        $duration = $service->duration_minutes ?? 60; 
+        $duration = $service->duration_minutes ?? 60;
 
-        // Rango de atención: 09:00 a 20:00
+        // Definir hora de inicio y fin de la jornada laboral
         $startOfDay = Carbon::parse("$date 09:00:00");
         $endOfDay = Carbon::parse("$date 20:00:00");
+
+        // Obtener la hora actual para saber qué ya pasó
+        $now = Carbon::now();
+        $isToday = Carbon::parse($date)->isToday();
 
         $slots = [];
         $currentSlot = $startOfDay->copy();
 
+        // Traer turnos ocupados
         $appointments = Appointment::where('tenant_id', 1)
             ->whereDate('scheduled_at', $date)
             ->where('payment_status', '!=', 'cancelled')
@@ -176,17 +184,28 @@ class AppointmentController extends Controller
             $slotStart = $currentSlot;
             $slotEnd = $currentSlot->copy()->addMinutes($duration);
 
+            // 1. Chequeo de ocupado por otro turno
             $isBooked = $appointments->contains(function ($app) use ($slotStart, $slotEnd) {
                 return $app->scheduled_at < $slotEnd && $app->ends_at > $slotStart;
             });
 
-            if (!$isBooked) {
-                $slots[] = $slotStart->format('H:i'); 
-            }
+            // 2. Chequeo de horario pasado (NUEVO)
+            // Si es hoy Y la hora de inicio del slot ya pasó, está no disponible.
+            $isPast = $isToday && $slotStart->lt($now);
 
-            // CORRECCIÓN: Avanzamos de a 30 mins para dar más opciones de inicio
-            // (Ej: 9:00, 9:30, 10:00) aunque el turno dure 2 horas.
-            $currentSlot->addMinutes(30); 
+            // Un slot está disponible solo si NO está ocupado Y NO es pasado
+            $isAvailable = !$isBooked && !$isPast;
+
+            // Guardamos el objeto completo
+            $slots[] = [
+                'time' => $slotStart->format('H:i'),
+                'available' => $isAvailable,
+                // Opcional: podemos mandar la razón para mostrar en el front
+                'reason' => $isBooked ? 'Ocupado' : ($isPast ? 'Horario pasado' : 'Disponible')
+            ];
+
+            // Avanzamos de a 30 mins para mostrar opciones
+            $currentSlot->addMinutes(30);
         }
 
         return response()->json($slots);

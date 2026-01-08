@@ -4,7 +4,9 @@ namespace Database\Seeders;
 
 use App\Models\Service;
 use App\Models\Tenant;
+use App\Models\User; // <--- Importante
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
@@ -13,14 +15,23 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Crear una Barbería de prueba
+        // 1. Crear el DUEÑO primero (para tener el ID)
+        $user = User::create([
+            'name' => 'Sebas Admin',
+            'email' => 'sebas@test.com', // Este será tu usuario para entrar
+            'password' => Hash::make('password'),
+            'is_admin' => true, 
+        ]);
+
+        // 2. Crear la Barbería vinculada a ese dueño
         $tenant = Tenant::create([
+            'user_id' => $user->id, // <--- AQUÍ SOLUCIONAMOS EL ERROR
             'name' => 'Barbería Sebas',
             'slug' => 'barberia-sebas',
             'primary_color' => '#000000',
         ]);
 
-        // 2. Crear un Servicio de prueba vinculado a esa barbería
+        // 3. Crear Servicios de prueba vinculados a esa barbería
         Service::create([
             'tenant_id' => $tenant->id,
             'name' => 'Corte Clásico',
@@ -30,7 +41,6 @@ class DatabaseSeeder extends Seeder
             'is_active' => true,
         ]);
 
-        // (Opcional) Mensaje en consola para saber que corrió
-        $this->command->info('¡Barbería y Servicio de prueba creados!');
+        $this->command->info('¡Base de datos reseteada! Usuario: sebas@test.com / password');
     }
 }

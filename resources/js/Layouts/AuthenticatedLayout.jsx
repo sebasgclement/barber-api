@@ -2,9 +2,9 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
-import { Toaster } from 'react-hot-toast';
 import { Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 
 export default function AuthenticatedLayout({ header, children }) {
     const user = usePage().props.auth.user;
@@ -33,13 +33,15 @@ export default function AuthenticatedLayout({ header, children }) {
                                     Dashboard
                                 </NavLink>
                                 
-                                {/* AGREGADO: Link de Mis Turnos */}
-                                <NavLink
-                                    href={route('my-appointments.index')}
-                                    active={route().current('my-appointments.index')}
-                                >
-                                    Mis Turnos
-                                </NavLink>
+                                {/* MODIFICADO: Solo se muestra si NO es admin */}
+                                {!user.is_admin && (
+                                    <NavLink
+                                        href={route('my-appointments.index')}
+                                        active={route().current('my-appointments.index')}
+                                    >
+                                        Mis Turnos
+                                    </NavLink>
+                                )}
                             </div>
                         </div>
 
@@ -71,16 +73,10 @@ export default function AuthenticatedLayout({ header, children }) {
                                     </Dropdown.Trigger>
 
                                     <Dropdown.Content>
-                                        <Dropdown.Link
-                                            href={route('profile.edit')}
-                                        >
+                                        <Dropdown.Link href={route('profile.edit')}>
                                             Profile
                                         </Dropdown.Link>
-                                        <Dropdown.Link
-                                            href={route('logout')}
-                                            method="post"
-                                            as="button"
-                                        >
+                                        <Dropdown.Link href={route('logout')} method="post" as="button">
                                             Log Out
                                         </Dropdown.Link>
                                     </Dropdown.Content>
@@ -104,22 +100,14 @@ export default function AuthenticatedLayout({ header, children }) {
                                     viewBox="0 0 24 24"
                                 >
                                     <path
-                                        className={
-                                            !showingNavigationDropdown
-                                                ? 'inline-flex'
-                                                : 'hidden'
-                                        }
+                                        className={!showingNavigationDropdown ? 'inline-flex' : 'hidden'}
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
                                         strokeWidth="2"
                                         d="M4 6h16M4 12h16M4 18h16"
                                     />
                                     <path
-                                        className={
-                                            showingNavigationDropdown
-                                                ? 'inline-flex'
-                                                : 'hidden'
-                                        }
+                                        className={showingNavigationDropdown ? 'inline-flex' : 'hidden'}
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
                                         strokeWidth="2"
@@ -132,48 +120,32 @@ export default function AuthenticatedLayout({ header, children }) {
                 </div>
 
                 {/* --- MENÚ MÓVIL (RESPONSIVE) --- */}
-                <div
-                    className={
-                        (showingNavigationDropdown ? 'block' : 'hidden') +
-                        ' sm:hidden'
-                    }
-                >
+                <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' sm:hidden'}>
                     <div className="space-y-1 pb-3 pt-2">
-                        <ResponsiveNavLink
-                            href={route('dashboard')}
-                            active={route().current('dashboard')}
-                        >
+                        <ResponsiveNavLink href={route('dashboard')} active={route().current('dashboard')}>
                             Dashboard
                         </ResponsiveNavLink>
 
-                        {/* AGREGADO: Link de Mis Turnos (Móvil) */}
-                        <ResponsiveNavLink
-                            href={route('my-appointments.index')}
-                            active={route().current('my-appointments.index')}
-                        >
-                            Mis Turnos
-                        </ResponsiveNavLink>
+                        {/* MODIFICADO: Solo se muestra si NO es admin */}
+                        {!user.is_admin && (
+                            <ResponsiveNavLink
+                                href={route('my-appointments.index')}
+                                active={route().current('my-appointments.index')}
+                            >
+                                Mis Turnos
+                            </ResponsiveNavLink>
+                        )}
                     </div>
 
                     <div className="border-t border-gray-200 pb-1 pt-4">
                         <div className="px-4">
-                            <div className="text-base font-medium text-gray-800">
-                                {user.name}
-                            </div>
-                            <div className="text-sm font-medium text-gray-500">
-                                {user.email}
-                            </div>
+                            <div className="text-base font-medium text-gray-800">{user.name}</div>
+                            <div className="text-sm font-medium text-gray-500">{user.email}</div>
                         </div>
 
                         <div className="mt-3 space-y-1">
-                            <ResponsiveNavLink href={route('profile.edit')}>
-                                Profile
-                            </ResponsiveNavLink>
-                            <ResponsiveNavLink
-                                method="post"
-                                href={route('logout')}
-                                as="button"
-                            >
+                            <ResponsiveNavLink href={route('profile.edit')}>Profile</ResponsiveNavLink>
+                            <ResponsiveNavLink method="post" href={route('logout')} as="button">
                                 Log Out
                             </ResponsiveNavLink>
                         </div>
@@ -183,9 +155,7 @@ export default function AuthenticatedLayout({ header, children }) {
 
             {header && (
                 <header className="bg-white shadow">
-                    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-                        {header}
-                    </div>
+                    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{header}</div>
                 </header>
             )}
 
@@ -193,12 +163,7 @@ export default function AuthenticatedLayout({ header, children }) {
             <Toaster 
                 position="top-right"
                 toastOptions={{
-                    className: '',
-                    style: {
-                        border: '1px solid #713200',
-                        padding: '16px',
-                        color: '#713200',
-                    },
+                    style: { border: '1px solid #713200', padding: '16px', color: '#713200' },
                 }}
             />
         </div>
